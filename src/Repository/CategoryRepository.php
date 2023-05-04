@@ -67,12 +67,33 @@ class CategoryRepository extends ServiceEntityRepository
 
    public function findOneById($value)
    {
-       return $this->createQueryBuilder('c')
-            ->select('c.id, c.title')
-            ->andWhere('c.id = :val')
-            ->setParameter('val', $value)
-            ->getQuery()
-            ->getOneOrNullResult()
-       ;
+    $results = $this->createQueryBuilder('c')
+        ->select('c.id, c.title, a.title as article')
+        ->andWhere('c.id = :val')
+        ->leftJoin('c.articles', 'a')
+        ->setParameter('val', $value)
+        ->getQuery()
+        ->getResult()
+    ;
+       
+       if (empty($results)) {
+            return null;
+        }
+
+        $post = array_reduce($results, function ($carry, $item) {
+            if ($carry === null) {
+                $carry = [
+                    'id' => $item['id'],
+                    'title' => $item['title'],
+                    'articles' => []
+                ];
+            }
+            if ($item['article'] !== null) {
+                $carry['articles'][] = $item['article'];
+            }
+            return $carry;
+        });
+
+        return $post;
    }
 }
