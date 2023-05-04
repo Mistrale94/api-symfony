@@ -8,6 +8,7 @@ use App\Entity\Article;
 use App\Repository\ArticleRepository;
 use App\Entity\User;
 use App\Repository\UserRepository;
+use App\Service\Validator;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\JsonResponse;
@@ -57,7 +58,50 @@ class CommentController extends AbstractController
                 ]);
             }
         }
+        return new JsonResponse('Access denied', 403);
+    }
+    #[Route('/comment/{id}', name: 'app_comment_update', methods: ['PATCH'])]
+    public function update(Comment $comment = null, Request $request, EntityManagerInterface $em, Validator $v){
+        $headers = $request->headers->all();
+        if (isset($headers['token']) && !empty($headers['token'])) {
+            $jwt = current($headers['token']);
+            $key = $this->getParameter('jwt_secret');
 
+            try {
+                $decoded = JWT::decode($jwt, new Key($key, 'HS256'));
+            } catch (\Exception $e) {
+                return new JsonResponse($e->getMessage(), 403);
+            }
+
+            if ($decoded->roles != null && in_array('ROLE_ADMIN', $decoded->roles)) {
+
+                if($comment == null){
+                    return new JsonResponse('Produit introuvable', 404);
+                }
+
+                $params = 0;
+
+                if($request->get('state') !== null){
+                    $params++;
+                    $comment->setState($request->get('state'));
+                }
+
+                if($params > 0){
+                    $isValid = $v->isValid($comment);
+                    if($isValid !== true){
+                        return new JsonResponse($isValid, 400);
+                    }
+
+                    $em->persist($comment);
+                    $em->flush();
+
+                    return new JsonResponse('ok', 200);
+                }
+                else{
+                    return new JsonResponse('Aucune donnée reçue', 200);
+                }
+            }
+        }
         return new JsonResponse('Access denied', 403);
     }
 }
